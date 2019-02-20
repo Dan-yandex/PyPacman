@@ -46,59 +46,78 @@ class PacMan(pygame.sprite.Sprite):
         self.image = pygame.transform.scale(player_image, (tile_width - 2, tile_height - 2))
         self.img = self.image
         self.rect = self.image.get_rect().move(
-            tile_width * pos_x + 1, tile_height * pos_y + 1)
+            tile_width * pos_x, tile_height * pos_y)
 
-        self.speed = 3
+        self.speed = 4
         self.cur_dir = None
         self.next_dir = None
+        self.cur_cell = field.cell(self.rect.x + self.rect.width / 2, self.rect.y + self.rect.height / 2)
+        self.check_cells = None
 
-    def move(self, dir):
+    def set_check_cells(self, x, y):
+        self.check_cells = [list(tiles_group)[(self.cur_cell[1] - 1) * (x + 1) + (self.cur_cell[0] - 1):(self.cur_cell[1] - 1) * (x + 1) + self.cur_cell[0] + 2],
+                            list(tiles_group)[(self.cur_cell[1]) * (x + 1) + (self.cur_cell[0] - 1):(self.cur_cell[1]) * (x + 1) + self.cur_cell[0] + 2],
+                            list(tiles_group)[(self.cur_cell[1] + 1) * (x + 1) + (self.cur_cell[0] - 1):(self.cur_cell[1] + 1) * (x + 1) + self.cur_cell[0] + 2]]
+        '''print(self.rect)
+        for i in self.check_cells:
+            for s in i:
+                print(s.rect)
+        # print(self.check_cells)'''
+
+
+    def turn(self, dir):
         global x, y
         check_pos = list(tiles_group)[(field.cell(self.rect.x, self.rect.y)[1]) * (x + 1):(field.cell(self.rect.x, self.rect.y)[1] + 2) * (x + 1)]
         if dir == 'r':
-            self.rect.x += self.speed
-            for s in check_pos:
-                if s.tile_type == 'wall' and pygame.sprite.collide_rect(self, s):
-                    self.rect.x -= self.speed
-                    return False
-            self.rect.x -= self.speed
+            if self.check_cells[1][2].tile_type == 'wall':
+                return False
             self.image = self.img
-            self.rect = self.rect.move(self.speed, 0)
         if dir == 'l':
-            self.rect.x -= self.speed
-            for s in check_pos:
-                if s.tile_type == 'wall' and pygame.sprite.collide_rect(self, s):
-                    self.rect.x += self.speed
-                    return False
-            self.rect.x += self.speed
+            if self.check_cells[1][0].tile_type == 'wall':
+                return False
             self.image = pygame.transform.rotate(self.img, 180)
-            self.rect = self.rect.move(-self.speed, 0)
         if dir == 'u':
-            self.rect.y -= self.speed
-            for s in list(tiles_group)[(field.cell(self.rect.x, self.rect.y)[1]) * (x + 1):(field.cell(self.rect.x, self.rect.y)[1] + 2) * (x + 1)]:
-                if s.tile_type == 'wall' and pygame.sprite.collide_rect(self, s):
-                    self.rect.y += self.speed
-                    return False
-            self.rect.y += self.speed
+            if self.check_cells[0][1].tile_type == 'wall':
+                return False
             self.image = pygame.transform.rotate(self.img, 90)
-            self.rect = self.rect.move(0, -self.speed)
         if dir == 'd':
-            self.rect.y += self.speed
-            for s in check_pos:
-                if s.tile_type == 'wall' and pygame.sprite.collide_rect(self, s):
-                    self.rect.y -= self.speed
-                    return False
-            self.rect.y -= self.speed
+            if self.check_cells[2][1].tile_type == 'wall':
+                return False
             self.image = pygame.transform.rotate(self.img, -90)
-            self.rect = self.rect.move(0, self.speed)
         if dir is not None:
             return True
+
+    def move(self, dir):
+        if dir == 'r':
+            self.rect = self.rect.move(self.speed, 0)
+        elif dir == 'l':
+            self.rect = self.rect.move(-self.speed, 0)
+        elif dir == 'u':
+            self.rect = self.rect.move(0, -self.speed)
+        elif dir == 'd':
+            self.rect = self.rect.move(0, self.speed)
+
+    def stop(self, dir):
+        if dir == 'r' and self.check_cells[1][2].tile_type == 'wall':
+            self.cur_dir = None
+        elif dir == 'l' and self.check_cells[1][0].tile_type == 'wall':
+            self.cur_dir = None
+        elif dir == 'u' and self.check_cells[0][1].tile_type == 'wall':
+            self.cur_dir = None
+        elif dir == 'd' and self.check_cells[2][1].tile_type == 'wall':
+            self.cur_dir = None
 
     def update(self):
         global x, y
         map_x, map_y = field.cell(self.rect.x + self.rect.width / 2, self.rect.y + self.rect.height / 2)
-        if self.move(self.next_dir):
-            self.cur_dir, self.next_dir = self.next_dir, None
+        if (map_x, map_y) != self.cur_cell:
+            self.cur_cell = (map_x, map_y)
+            self.set_check_cells(x, y)
+        if self.check_cells[1][1].rect.centerx - 2 <= self.rect.centerx <= self.check_cells[1][1].rect.centerx + 2 and\
+                self.check_cells[1][1].rect.centery - 2 <= self.rect.centery <= self.check_cells[1][1].rect.centery + 2:
+            if self.turn(self.next_dir):
+                self.cur_dir, self.next_dir = self.next_dir, None
+            self.stop(self.cur_dir)
         self.move(self.cur_dir)
         tile = list(tiles_group)[map_y * (x + 1) + map_x]
         if tile.tile_type == 'tile_point':
@@ -160,6 +179,7 @@ player_group = pygame.sprite.Group()
 m = load_level('map_classic.txt')
 field = Field(m)
 pacman, x, y = generate_level(m)
+pacman.set_check_cells(x, y)
 print(len(list(tiles_group)), x, y)
 
 
