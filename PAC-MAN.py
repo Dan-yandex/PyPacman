@@ -1,4 +1,5 @@
 import pygame
+import random
 import sys
 import os
 
@@ -48,7 +49,7 @@ class PacMan(pygame.sprite.Sprite):
         self.rect = self.image.get_rect().move(
             tile_width * pos_x, tile_height * pos_y)
 
-        self.speed = 4
+        self.speed = 1
         self.cur_dir = None
         self.next_dir = None
         self.cur_cell = field.cell(self.rect.x + self.rect.width / 2, self.rect.y + self.rect.height / 2)
@@ -113,8 +114,8 @@ class PacMan(pygame.sprite.Sprite):
         if (map_x, map_y) != self.cur_cell:
             self.cur_cell = (map_x, map_y)
             self.set_check_cells(x, y)
-        if self.check_cells[1][1].rect.centerx - 2 <= self.rect.centerx <= self.check_cells[1][1].rect.centerx + 2 and\
-                self.check_cells[1][1].rect.centery - 2 <= self.rect.centery <= self.check_cells[1][1].rect.centery + 2:
+        if self.check_cells[1][1].rect.centerx - 1 <= self.rect.centerx <= self.check_cells[1][1].rect.centerx + 1 and\
+                self.check_cells[1][1].rect.centery - 1 <= self.rect.centery <= self.check_cells[1][1].rect.centery + 1:
             if self.turn(self.next_dir):
                 self.cur_dir, self.next_dir = self.next_dir, None
             self.stop(self.cur_dir)
@@ -123,11 +124,80 @@ class PacMan(pygame.sprite.Sprite):
         if tile.tile_type == 'tile_point':
             tile.tile_type = 'tile_empty'
             tile.image = pygame.transform.scale(tile_images[tile.tile_type], (tile_width, tile_height))
+            draw(tiles_group)
         # print(field.cell(self.rect.x, self.rect.y))
 
 
+class Ghost(pygame.sprite.Sprite):
+    def __init__(self, pos_x, pos_y, name):
+        super().__init__(player_group, all_sprites)
+        self.image = pygame.transform.scale(tile_images[name], (tile_width, tile_height))
+        self.img = self.image
+        self.rect = self.image.get_rect().move(
+            tile_width * pos_x, tile_height * pos_y)
+
+        self.speed = 1
+        self.next_dir = None
+        self.possible_dirs = []
+        self.cur_dir = None
+        self.cur_cell = field.cell(self.rect.x + self.rect.width / 2, self.rect.y + self.rect.height / 2)
+        self.check_cells = None
+
+    def set_check_cells(self, x, y):
+        self.check_cells = [list(tiles_group)[(self.cur_cell[1] - 1) * (x + 1) + (self.cur_cell[0] - 1):(self.cur_cell[1] - 1) * (x + 1) + self.cur_cell[0] + 2],
+                            list(tiles_group)[(self.cur_cell[1]) * (x + 1) + (self.cur_cell[0] - 1):(self.cur_cell[1]) * (x + 1) + self.cur_cell[0] + 2],
+                            list(tiles_group)[(self.cur_cell[1] + 1) * (x + 1) + (self.cur_cell[0] - 1):(self.cur_cell[1] + 1) * (x + 1) + self.cur_cell[0] + 2]]
+
+    def change_dir(self):
+        opposites = {'l': 'r', 'r': 'l', 'u': 'd', 'd': 'u'}
+        if self.cur_dir is not None:
+            if len(self.possible_dirs) > 1:
+                try:
+                    d = self.possible_dirs.pop(self.possible_dirs.index(opposites[self.cur_dir]))
+                    o = self.possible_dirs.pop(self.possible_dirs.index(opposites[d]))
+                except ValueError:
+                    pass
+        try:
+            self.cur_dir = random.choice(self.possible_dirs)
+        except IndexError:
+            self.cur_dir = o
+
+    def set_possible_dirs(self):
+        self.possible_dirs = []
+        if self.check_cells[1][2].tile_type != 'wall':
+            self.possible_dirs.append('r')
+        if self.check_cells[1][0].tile_type != 'wall':
+            self.possible_dirs.append('l')
+        if self.check_cells[0][1].tile_type != 'wall':
+            self.possible_dirs.append('u')
+        if self.check_cells[2][1].tile_type != 'wall':
+            self.possible_dirs.append('d')
+
+    def move(self, dir):
+        if dir == 'r':
+            self.rect = self.rect.move(self.speed, 0)
+        elif dir == 'l':
+            self.rect = self.rect.move(-self.speed, 0)
+        elif dir == 'u':
+            self.rect = self.rect.move(0, -self.speed)
+        elif dir == 'd':
+            self.rect = self.rect.move(0, self.speed)
+
+    def update(self):
+        global x, y
+        map_x, map_y = field.cell(self.rect.x + self.rect.width / 2, self.rect.y + self.rect.height / 2)
+        if (map_x, map_y) != self.cur_cell:
+            self.cur_cell = (map_x, map_y)
+        self.set_check_cells(x, y)
+        if self.check_cells[1][1].rect.centerx - 1 <= self.rect.centerx <= self.check_cells[1][1].rect.centerx + 1 and\
+                self.check_cells[1][1].rect.centery - 1 <= self.rect.centery <= self.check_cells[1][1].rect.centery + 1:
+            self.set_possible_dirs()
+            self.change_dir()
+        self.move(self.cur_dir)
+
+
 def generate_level(level):
-    new_player, x, y = None, None, None
+    new_player, x, y, pinky, inky, clyde, blinky = None, None, None, None, None, None, None
     for y in range(len(level)):
         for x in range(len(level[y])):
             if level[y][x] == '.':
@@ -141,7 +211,19 @@ def generate_level(level):
             elif level[y][x] == '@':
                 Tile('tile_empty', x, y)
                 new_player = PacMan(x, y)
-    return new_player, x, y
+            elif level[y][x] == 'P':
+                Tile('tile_empty', x, y)
+                pinky = Ghost(x, y, 'pinky')
+            elif level[y][x] == 'I':
+                Tile('tile_empty', x, y)
+                inky = Ghost(x, y, 'inky')
+            elif level[y][x] == 'C':
+                Tile('tile_empty', x, y)
+                clyde = Ghost(x, y, 'clyde')
+            elif level[y][x] == 'B':
+                Tile('tile_empty', x, y)
+                blinky = Ghost(x, y, 'blinky')
+    return new_player, x, y, pinky, inky, clyde, blinky
 
 
 def load_level(filename):
@@ -157,10 +239,17 @@ def load_level(filename):
     return list(map(lambda x: x.ljust(max_width, '.'), level_map))
 
 
+def draw(group):
+    global Canvas
+    group.draw(Canvas)
+
+
 # print(load_level('map.txt'))
 
 running = True
-FPS = 40
+FPS = 150
+counter = 0
+Canvas = pygame.Surface(size)
 tile_width = tile_height = 23
 clock = pygame.time.Clock()
 
@@ -168,7 +257,11 @@ tile_images = {
     'wall': load_image('block.png'),
     'tile_empty': load_image('ground1.png'),
     'tile_point': load_image('ground_point.png'),
-    'tile_point_big': load_image('ground_point_big.png')
+    'tile_point_big': load_image('ground_point_big.png'),
+    'blinky': load_image('blinky.png'),
+    'clyde': load_image('clyde.png'),
+    'inky': load_image('inky.png'),
+    'pinky': load_image('pinky.png'),
 }
 player_image = load_image('pacman.png')
 
@@ -178,9 +271,10 @@ player_group = pygame.sprite.Group()
 
 m = load_level('map_classic.txt')
 field = Field(m)
-pacman, x, y = generate_level(m)
+pacman, x, y, pinky, inky, clyde, blinky = generate_level(m)
 pacman.set_check_cells(x, y)
 print(len(list(tiles_group)), x, y)
+tiles_group.draw(Canvas)
 
 
 def start_screen():
@@ -214,7 +308,6 @@ start_screen()
 
 
 while running:
-    screen.fill(pygame.Color('black'))
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
@@ -233,11 +326,14 @@ while running:
             pacman.next_dir = dir
             # pacman.move(dir)
 
-    all_sprites.draw(screen)
-    tiles_group.draw(screen)
-    player_group.draw(screen)
+    # all_sprites.draw(screen)
+    if counter % 3 == 0:
+        # screen.fill(pygame.Color('black'))
+        screen.blit(Canvas, (0, 0))
+        player_group.draw(screen)
+        pygame.display.flip()
     player_group.update()
     clock.tick(FPS)
-    pygame.display.flip()
+    counter += 1
 
 pygame.quit()
