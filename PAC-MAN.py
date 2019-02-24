@@ -68,7 +68,6 @@ class PacMan(pygame.sprite.Sprite):
 
     def turn(self, dir):
         global x, y
-        check_pos = list(tiles_group)[(field.cell(self.rect.x, self.rect.y)[1]) * (x + 1):(field.cell(self.rect.x, self.rect.y)[1] + 2) * (x + 1)]
         if dir == 'r':
             if self.check_cells[1][2].tile_type == 'wall':
                 return False
@@ -184,16 +183,18 @@ class Ghost(pygame.sprite.Sprite):
             self.rect = self.rect.move(0, self.speed)
 
     def update(self):
-        global x, y
+        global x, y, pacman, running
         map_x, map_y = field.cell(self.rect.x + self.rect.width / 2, self.rect.y + self.rect.height / 2)
         if (map_x, map_y) != self.cur_cell:
             self.cur_cell = (map_x, map_y)
         self.set_check_cells(x, y)
-        if self.check_cells[1][1].rect.centerx - 1 <= self.rect.centerx <= self.check_cells[1][1].rect.centerx + 1 and\
-                self.check_cells[1][1].rect.centery - 1 <= self.rect.centery <= self.check_cells[1][1].rect.centery + 1:
+        if self.check_cells[1][1].rect.centerx <= self.rect.centerx <= self.check_cells[1][1].rect.centerx and\
+                self.check_cells[1][1].rect.centery <= self.rect.centery <= self.check_cells[1][1].rect.centery:
             self.set_possible_dirs()
             self.change_dir()
         self.move(self.cur_dir)
+        if map_x == pacman.cur_cell[0] and map_y == pacman.cur_cell[1]:
+            game_over_screen()
 
 
 def generate_level(level):
@@ -286,6 +287,45 @@ def start_screen():
     text_coord = 50
     for line in intro_text:
         string_rendered = font.render(line, 1, pygame.Color('black'))
+        intro_rect = string_rendered.get_rect()
+        text_coord += 10
+        intro_rect.top = text_coord
+        intro_rect.x = 10
+        text_coord += intro_rect.height
+        screen.blit(string_rendered, intro_rect)
+
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+            elif event.type == pygame.KEYDOWN or \
+                    event.type == pygame.MOUSEBUTTONDOWN:
+                return
+        pygame.display.flip()
+        clock.tick(FPS)
+
+
+def game_over_screen():
+    global all_sprites, tiles_group, player_group, field, pacman, x, y, pinky, inky, clyde, blinky
+    intro_text = ["GAME OVER!"]
+
+    all_sprites = pygame.sprite.Group()
+    tiles_group = pygame.sprite.Group()
+    player_group = pygame.sprite.Group()
+
+    m = load_level('map_classic.txt')
+    field = Field(m)
+    pacman, x, y, pinky, inky, clyde, blinky = generate_level(m)
+    pacman.set_check_cells(x, y)
+    print(len(list(tiles_group)), x, y)
+    tiles_group.draw(Canvas)
+
+    fon = pygame.transform.scale(load_image('bg_start_screen.jpg'), (WIDTH, HEIGHT))
+    screen.blit(fon, (0, 0))
+    font = pygame.font.Font(None, 30)
+    text_coord = 50
+    for line in intro_text:
+        string_rendered = font.render(line, 1, pygame.Color('white'))
         intro_rect = string_rendered.get_rect()
         text_coord += 10
         intro_rect.top = text_coord
