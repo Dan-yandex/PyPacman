@@ -27,9 +27,22 @@ class Field:
     def __init__(self, field):
         self.field = field
         self.points = 0
+        self.mode = 'normal'
+        self.ghost_mode = 0
 
     def cell(self, x, y):
         return int(x / tile_width), int(y / tile_height) - shifty
+
+    def change_ghosts(self, s):
+        self.ghost_mode = s
+        for i in player_group:
+            if type(i) == Ghost:
+                if s == 0:
+                    i.image = pygame.transform.scale(i.img, (tile_width, tile_height))
+                if s == 1:
+                    i.image = pygame.transform.scale(tile_images['ghost_blue'], (tile_width, tile_height))
+                if s == 2:
+                    i.image = pygame.transform.scale(tile_images['ghost_white'], (tile_width, tile_height))
 
 
 class Tile(pygame.sprite.Sprite):
@@ -111,7 +124,7 @@ class PacMan(pygame.sprite.Sprite):
             self.cur_dir = None
 
     def update(self):
-        global x, y
+        global x, y, ghost_counter
         map_x, map_y = field.cell(self.rect.x + self.rect.width / 2, self.rect.y + self.rect.height / 2)
         if (map_x, map_y) != self.cur_cell:
             self.cur_cell = (map_x, map_y)
@@ -127,8 +140,19 @@ class PacMan(pygame.sprite.Sprite):
             tile.tile_type = 'tile_empty'
             tile.image = pygame.transform.scale(tile_images[tile.tile_type], (tile_width, tile_height))
             field.points += 10
-            show_text('points: {}'.format(field.points), WIDTH - 120, 10)
+            show_text('points: {}'.format(field.points), WIDTH - 120, 10, Canvas, 'yellow')
             draw(tiles_group)
+        if tile.tile_type == 'tile_point_big':
+            field.mode = 'ghost_eatable'
+            tile.tile_type = 'tile_empty'
+            tile.image = pygame.transform.scale(tile_images[tile.tile_type], (tile_width, tile_height))
+            field.points += 20
+            show_text('points: {}'.format(field.points), WIDTH - 120, 10, Canvas, 'yellow')
+            draw(tiles_group)
+
+            field.change_ghosts(1)
+            ghost_counter = counter
+
         # print(field.cell(self.rect.x, self.rect.y))
 
 
@@ -188,7 +212,7 @@ class Ghost(pygame.sprite.Sprite):
             self.rect = self.rect.move(0, self.speed)
 
     def update(self):
-        global x, y, pacman, running
+        global x, y, pacman, ghost_counter
         map_x, map_y = field.cell(self.rect.x + self.rect.width / 2, self.rect.y + self.rect.height / 2)
         if (map_x, map_y) != self.cur_cell:
             self.cur_cell = (map_x, map_y)
@@ -198,6 +222,15 @@ class Ghost(pygame.sprite.Sprite):
             self.set_possible_dirs()
             self.change_dir()
         self.move(self.cur_dir)
+        if (counter - ghost_counter) / FPS >= 3:
+            field.change_ghosts(0)
+            ghost_counter = 10**9
+        if 2 * FPS <= (counter - ghost_counter) <= 3 * FPS:
+            if ((counter - ghost_counter) - 2 * FPS) % 20 == 0:
+                if field.ghost_mode == 2:
+                    field.change_ghosts(1)
+                else:
+                    field.change_ghosts(2)
         if map_x == pacman.cur_cell[0] and map_y == pacman.cur_cell[1]:
             game_over_screen()
 
@@ -250,23 +283,26 @@ def draw(group):
     group.draw(Canvas)
 
 
-def show_text(text, x, y):
+def show_text(text, x, y, surface, color='white', size=30, align='left'):
 
-    font = pygame.font.Font(None, 30)
+    font = pygame.font.Font(None, size)
 
-    string_rendered = font.render(text, 1, pygame.Color('yellow'))
+    string_rendered = font.render(text, 1, pygame.Color(color))
     text_rect = string_rendered.get_rect()
     text_rect.top = y
     text_rect.x = x
-    pygame.draw.rect(Canvas, pygame.Color('black'), text_rect)
-    Canvas.blit(string_rendered, text_rect)
-
+    if align == 'center':
+        text_rect.x -= text_rect.width // 2
+        text_rect.y -= text_rect.height // 2
+    pygame.draw.rect(surface, pygame.Color('black'), text_rect)
+    surface.blit(string_rendered, text_rect)
 
 # print(load_level('map.txt'))
 
 running = True
 FPS = 150
 counter = 0
+ghost_counter = 0
 Canvas = pygame.Surface(size)
 m = load_level('map_classic.txt')
 shifty = 2
@@ -287,6 +323,8 @@ tile_images = {
     'clyde': load_image('clyde.png'),
     'inky': load_image('inky.png'),
     'pinky': load_image('pinky.png'),
+    'ghost_blue': load_image('ghost_blue.png'),
+    'ghost_white': load_image('ghost_white.png')
 }
 player_image = load_image('pacman.png')
 
@@ -294,12 +332,16 @@ all_sprites = pygame.sprite.Group()
 tiles_group = pygame.sprite.Group()
 player_group = pygame.sprite.Group()
 
+# mixer = pygame.mixer.music
+# mixer.load('data/Static-X - The Only (8bit).mp3')
+# mixer = mixer.play()
+
 field = Field(m)
 pacman, x, y, pinky, inky, clyde, blinky = generate_level(m)
 pacman.set_check_cells(x, y)
 print(len(list(tiles_group)), x, y)
 tiles_group.draw(Canvas)
-show_text('points: {}'.format(field.points), WIDTH - 120, 10)
+show_text('points: {}'.format(field.points), WIDTH - 120, 10, Canvas, 'yellow')
 
 
 def start_screen():
@@ -329,6 +371,23 @@ def start_screen():
         clock.tick(FPS)
 
 
+def pause_screen():
+    alpha_rect = pygame.Surface(size)
+    alpha_rect.set_alpha(75)
+    pygame.draw.rect(alpha_rect, pygame.Color('black'), (0, 0, WIDTH, HEIGHT))
+    screen.blit(alpha_rect, (0, 0))
+    show_text('PAUSE', WIDTH // 2, HEIGHT // 2, screen, size=100, align='center')
+    pygame.display.update()
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    return
+        clock.tick(FPS)
+
+
 def game_over_screen():
     global all_sprites, tiles_group, player_group, field, pacman, x, y, pinky, inky, clyde, blinky
     intro_text = ["GAME OVER!"]
@@ -344,7 +403,7 @@ def game_over_screen():
     pacman.set_check_cells(x, y)
     print(len(list(tiles_group)), x, y)
     tiles_group.draw(Canvas)
-    show_text('points: {}'.format(field.points), WIDTH - 120, 10)
+    show_text('points: {}'.format(field.points), WIDTH - 120, 10, Canvas, color='yellow')
 
     fon = pygame.transform.scale(load_image('bg_start_screen.jpg'), (WIDTH, HEIGHT))
     screen.blit(fon, (0, 0))
@@ -380,6 +439,8 @@ while running:
         if event.type == pygame.MOUSEBUTTONDOWN:
             pass
         if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                pause_screen()
             dir = None
             if event.key == pygame.K_LEFT:
                 dir = 'l'
