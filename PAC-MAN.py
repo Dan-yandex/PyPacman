@@ -4,7 +4,7 @@ import sys
 import os
 
 pygame.init()
-size = WIDTH, HEIGHT = 650, 750
+size = WIDTH, HEIGHT = 600, 700
 screen = pygame.display.set_mode(size)
 
 
@@ -26,13 +26,15 @@ def load_image(name, colorkey=None):
 class Field:
     def __init__(self, field):
         self.field = field
+        self.points = 0
 
     def cell(self, x, y):
-        return int(x / tile_width), int(y / tile_height)
+        return int(x / tile_width), int(y / tile_height) - shifty
 
 
 class Tile(pygame.sprite.Sprite):
     def __init__(self, tile_type, pos_x, pos_y):
+        pos_y += shifty
         super().__init__(tiles_group, all_sprites)
         self.image = pygame.transform.scale(tile_images[tile_type], (tile_width, tile_height))
         self.rect = self.image.get_rect().move(
@@ -43,6 +45,7 @@ class Tile(pygame.sprite.Sprite):
 
 class PacMan(pygame.sprite.Sprite):
     def __init__(self, pos_x, pos_y):
+        pos_y += shifty
         super().__init__(player_group, all_sprites)
         self.image = pygame.transform.scale(player_image, (tile_width - 2, tile_height - 2))
         self.img = self.image
@@ -123,12 +126,15 @@ class PacMan(pygame.sprite.Sprite):
         if tile.tile_type == 'tile_point':
             tile.tile_type = 'tile_empty'
             tile.image = pygame.transform.scale(tile_images[tile.tile_type], (tile_width, tile_height))
+            field.points += 10
+            show_text('points: {}'.format(field.points), WIDTH - 120, 10)
             draw(tiles_group)
         # print(field.cell(self.rect.x, self.rect.y))
 
 
 class Ghost(pygame.sprite.Sprite):
     def __init__(self, pos_x, pos_y, name):
+        pos_y += shifty
         super().__init__(player_group, all_sprites)
         self.image = pygame.transform.scale(tile_images[name], (tile_width, tile_height))
         self.img = self.image
@@ -153,13 +159,12 @@ class Ghost(pygame.sprite.Sprite):
             if len(self.possible_dirs) > 1:
                 try:
                     d = self.possible_dirs.pop(self.possible_dirs.index(opposites[self.cur_dir]))
-                    o = self.possible_dirs.pop(self.possible_dirs.index(opposites[d]))
                 except ValueError:
                     pass
         try:
             self.cur_dir = random.choice(self.possible_dirs)
         except IndexError:
-            self.cur_dir = o
+            pass
 
     def set_possible_dirs(self):
         self.possible_dirs = []
@@ -232,10 +237,10 @@ def load_level(filename):
     with open(filename, 'r') as mapFile:
         level_map = [line.strip() for line in mapFile]
 
-    # max_width = max(map(len, level_map))
-    max_width = WIDTH // tile_width
-    for _ in range(HEIGHT // tile_height - len(level_map)):
-        level_map.append('.')
+    max_width = max(map(len, level_map))
+    # max_width = WIDTH // tile_width
+    # for _ in range(HEIGHT // tile_height - len(level_map)):
+    #    level_map.append('.')
 
     return list(map(lambda x: x.ljust(max_width, '.'), level_map))
 
@@ -245,13 +250,32 @@ def draw(group):
     group.draw(Canvas)
 
 
+def show_text(text, x, y):
+
+    font = pygame.font.Font(None, 30)
+
+    string_rendered = font.render(text, 1, pygame.Color('yellow'))
+    text_rect = string_rendered.get_rect()
+    text_rect.top = y
+    text_rect.x = x
+    pygame.draw.rect(Canvas, pygame.Color('black'), text_rect)
+    Canvas.blit(string_rendered, text_rect)
+
+
 # print(load_level('map.txt'))
 
 running = True
 FPS = 150
 counter = 0
 Canvas = pygame.Surface(size)
-tile_width = tile_height = 23
+m = load_level('map_classic.txt')
+shifty = 2
+tile_width = WIDTH // len(m[0])
+tile_height = HEIGHT // (len(m) + shifty)
+if tile_width > tile_height:
+    tile_width = tile_height
+else:
+    tile_height = tile_width
 clock = pygame.time.Clock()
 
 tile_images = {
@@ -270,12 +294,12 @@ all_sprites = pygame.sprite.Group()
 tiles_group = pygame.sprite.Group()
 player_group = pygame.sprite.Group()
 
-m = load_level('map_classic.txt')
 field = Field(m)
 pacman, x, y, pinky, inky, clyde, blinky = generate_level(m)
 pacman.set_check_cells(x, y)
 print(len(list(tiles_group)), x, y)
 tiles_group.draw(Canvas)
+show_text('points: {}'.format(field.points), WIDTH - 120, 10)
 
 
 def start_screen():
@@ -309,6 +333,7 @@ def game_over_screen():
     global all_sprites, tiles_group, player_group, field, pacman, x, y, pinky, inky, clyde, blinky
     intro_text = ["GAME OVER!"]
 
+    pygame.draw.rect(Canvas, pygame.Color('black'), (0, 0, WIDTH, HEIGHT))
     all_sprites = pygame.sprite.Group()
     tiles_group = pygame.sprite.Group()
     player_group = pygame.sprite.Group()
@@ -319,6 +344,7 @@ def game_over_screen():
     pacman.set_check_cells(x, y)
     print(len(list(tiles_group)), x, y)
     tiles_group.draw(Canvas)
+    show_text('points: {}'.format(field.points), WIDTH - 120, 10)
 
     fon = pygame.transform.scale(load_image('bg_start_screen.jpg'), (WIDTH, HEIGHT))
     screen.blit(fon, (0, 0))
