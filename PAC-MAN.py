@@ -37,12 +37,19 @@ class Field:
         self.ghost_mode = s
         for i in player_group:
             if type(i) == Ghost:
-                if s == 0:
+                if self.ghost_mode == 0:
                     i.image = pygame.transform.scale(i.img, (tile_width, tile_height))
-                if s == 1:
+                if self.ghost_mode == 1:
                     i.image = pygame.transform.scale(tile_images['ghost_blue'], (tile_width, tile_height))
-                if s == 2:
+                if self.ghost_mode == 2:
                     i.image = pygame.transform.scale(tile_images['ghost_white'], (tile_width, tile_height))
+        # pygame.display.update()
+
+    def change_cell(self, tile, new_tile: str, points=0):
+        tile.tile_type = new_tile
+        tile.image = pygame.transform.scale(tile_images[new_tile], (tile_width, tile_height))
+        self.points += points
+        draw(tiles_group)
 
 
 class Tile(pygame.sprite.Sprite):
@@ -75,11 +82,6 @@ class PacMan(pygame.sprite.Sprite):
         self.check_cells = [list(tiles_group)[(self.cur_cell[1] - 1) * (x + 1) + (self.cur_cell[0] - 1):(self.cur_cell[1] - 1) * (x + 1) + self.cur_cell[0] + 2],
                             list(tiles_group)[(self.cur_cell[1]) * (x + 1) + (self.cur_cell[0] - 1):(self.cur_cell[1]) * (x + 1) + self.cur_cell[0] + 2],
                             list(tiles_group)[(self.cur_cell[1] + 1) * (x + 1) + (self.cur_cell[0] - 1):(self.cur_cell[1] + 1) * (x + 1) + self.cur_cell[0] + 2]]
-        '''print(self.rect)
-        for i in self.check_cells:
-            for s in i:
-                print(s.rect)
-        # print(self.check_cells)'''
 
 
     def turn(self, dir):
@@ -137,21 +139,15 @@ class PacMan(pygame.sprite.Sprite):
         self.move(self.cur_dir)
         tile = list(tiles_group)[map_y * (x + 1) + map_x]
         if tile.tile_type == 'tile_point':
-            tile.tile_type = 'tile_empty'
-            tile.image = pygame.transform.scale(tile_images[tile.tile_type], (tile_width, tile_height))
-            field.points += 10
+            field.change_cell(tile, 'tile_empty', points=10)
             show_text('points: {}'.format(field.points), WIDTH - 120, 10, Canvas, 'yellow')
-            draw(tiles_group)
         if tile.tile_type == 'tile_point_big':
-            field.mode = 'ghost_eatable'
-            tile.tile_type = 'tile_empty'
-            tile.image = pygame.transform.scale(tile_images[tile.tile_type], (tile_width, tile_height))
-            field.points += 20
+            field.change_cell(tile, 'tile_empty', points=20)
             show_text('points: {}'.format(field.points), WIDTH - 120, 10, Canvas, 'yellow')
-            draw(tiles_group)
 
             field.change_ghosts(1)
             ghost_counter = counter
+            field.mode = 'ghost_eatable'
 
         # print(field.cell(self.rect.x, self.rect.y))
 
@@ -225,13 +221,14 @@ class Ghost(pygame.sprite.Sprite):
         if (counter - ghost_counter) / FPS >= 3:
             field.change_ghosts(0)
             ghost_counter = 10**9
+            field.mode = 'normal'
         if 2 * FPS <= (counter - ghost_counter) <= 3 * FPS:
-            if ((counter - ghost_counter) - 2 * FPS) % 20 == 0:
+            if ((counter - ghost_counter) - 2 * FPS) % 25 == 0:
                 if field.ghost_mode == 2:
                     field.change_ghosts(1)
-                else:
+                elif field.ghost_mode == 1:
                     field.change_ghosts(2)
-        if map_x == pacman.cur_cell[0] and map_y == pacman.cur_cell[1]:
+        if map_x == pacman.cur_cell[0] and map_y == pacman.cur_cell[1] and field.mode != 'ghost_eatable':
             game_over_screen()
 
 
@@ -302,7 +299,7 @@ def show_text(text, x, y, surface, color='white', size=30, align='left'):
 running = True
 FPS = 150
 counter = 0
-ghost_counter = 0
+ghost_counter = 10**9
 Canvas = pygame.Surface(size)
 m = load_level('map_classic.txt')
 shifty = 2
@@ -332,9 +329,11 @@ all_sprites = pygame.sprite.Group()
 tiles_group = pygame.sprite.Group()
 player_group = pygame.sprite.Group()
 
-# mixer = pygame.mixer.music
-# mixer.load('data/Static-X - The Only (8bit).mp3')
-# mixer = mixer.play()
+tracks = ['data/The_Only.ogg', 'data/Push_It.ogg']
+music = pygame.mixer.Sound(tracks[0]).play()
+music_keys = {pygame.K_1: 0,
+              pygame.K_2: 1,
+              pygame.K_0: -1}
 
 field = Field(m)
 pacman, x, y, pinky, inky, clyde, blinky = generate_level(m)
@@ -349,16 +348,8 @@ def start_screen():
 
     fon = pygame.transform.scale(load_image('bg_start_screen.jpg'), (WIDTH, HEIGHT))
     screen.blit(fon, (0, 0))
-    font = pygame.font.Font(None, 30)
-    text_coord = 50
     for line in intro_text:
-        string_rendered = font.render(line, 1, pygame.Color('black'))
-        intro_rect = string_rendered.get_rect()
-        text_coord += 10
-        intro_rect.top = text_coord
-        intro_rect.x = 10
-        text_coord += intro_rect.height
-        screen.blit(string_rendered, intro_rect)
+        show_text(line, 30, 50, screen,  size=50)
 
     while True:
         for event in pygame.event.get():
@@ -407,16 +398,8 @@ def game_over_screen():
 
     fon = pygame.transform.scale(load_image('bg_start_screen.jpg'), (WIDTH, HEIGHT))
     screen.blit(fon, (0, 0))
-    font = pygame.font.Font(None, 30)
-    text_coord = 50
     for line in intro_text:
-        string_rendered = font.render(line, 1, pygame.Color('white'))
-        intro_rect = string_rendered.get_rect()
-        text_coord += 10
-        intro_rect.top = text_coord
-        intro_rect.x = 10
-        text_coord += intro_rect.height
-        screen.blit(string_rendered, intro_rect)
+        show_text(line, 0, 50, screen, size=50)
 
     while True:
         for event in pygame.event.get():
@@ -441,6 +424,13 @@ while running:
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 pause_screen()
+            try:
+                k = music_keys[event.key]
+                music.stop()
+                if k >= 0:
+                    music = pygame.mixer.Sound(tracks[k]).play()
+            except KeyError:
+                pass
             dir = None
             if event.key == pygame.K_LEFT:
                 dir = 'l'
@@ -454,13 +444,13 @@ while running:
             # pacman.move(dir)
 
     # all_sprites.draw(screen)
+    player_group.update()
     if counter % 3 == 0:
         # screen.fill(pygame.Color('black'))
         screen.blit(Canvas, (0, 0))
         player_group.draw(screen)
         pygame.display.flip()
-    player_group.update()
-    clock.tick(FPS)
     counter += 1
+    clock.tick(FPS)
 
 pygame.quit()
