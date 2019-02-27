@@ -29,6 +29,7 @@ class Field:
         self.points = 0
         self.mode = 'normal'
         self.ghost_mode = 0
+        self.eaten_ghosts = 0
 
     def cell(self, x, y):
         return int(x / tile_width), int(y / tile_height) - shifty
@@ -39,9 +40,9 @@ class Field:
             if type(i) == Ghost:
                 if self.ghost_mode == 0:
                     i.image = pygame.transform.scale(i.img, (tile_width, tile_height))
-                if self.ghost_mode == 1:
+                if self.ghost_mode == 1 and i.mode == 'blue':
                     i.image = pygame.transform.scale(tile_images['ghost_blue'], (tile_width, tile_height))
-                if self.ghost_mode == 2:
+                if self.ghost_mode == 2 and i.mode == 'blue':
                     i.image = pygame.transform.scale(tile_images['ghost_white'], (tile_width, tile_height))
         # pygame.display.update()
 
@@ -82,7 +83,6 @@ class PacMan(pygame.sprite.Sprite):
         self.check_cells = [list(tiles_group)[(self.cur_cell[1] - 1) * (x + 1) + (self.cur_cell[0] - 1):(self.cur_cell[1] - 1) * (x + 1) + self.cur_cell[0] + 2],
                             list(tiles_group)[(self.cur_cell[1]) * (x + 1) + (self.cur_cell[0] - 1):(self.cur_cell[1]) * (x + 1) + self.cur_cell[0] + 2],
                             list(tiles_group)[(self.cur_cell[1] + 1) * (x + 1) + (self.cur_cell[0] - 1):(self.cur_cell[1] + 1) * (x + 1) + self.cur_cell[0] + 2]]
-
 
     def turn(self, dir):
         global x, y
@@ -145,6 +145,9 @@ class PacMan(pygame.sprite.Sprite):
             field.change_cell(tile, 'tile_empty', points=20)
             show_text('points: {}'.format(field.points), WIDTH - 120, 10, Canvas, 'yellow')
 
+            for i in player_group:
+                if type(i) == Ghost:
+                    i.mode = 'blue'
             field.change_ghosts(1)
             ghost_counter = counter
             field.mode = 'ghost_eatable'
@@ -161,6 +164,8 @@ class Ghost(pygame.sprite.Sprite):
         self.rect = self.image.get_rect().move(
             tile_width * pos_x, tile_height * pos_y)
 
+        self.mode = 'normal'
+        self.spawn_point = (pos_x, pos_y)
         self.speed = 1
         self.next_dir = None
         self.possible_dirs = []
@@ -218,18 +223,33 @@ class Ghost(pygame.sprite.Sprite):
             self.set_possible_dirs()
             self.change_dir()
         self.move(self.cur_dir)
+
         if (counter - ghost_counter) / FPS >= 3:
             field.change_ghosts(0)
             ghost_counter = 10**9
             field.mode = 'normal'
+            field.eaten_ghosts = 0
+            for i in player_group:
+                if type(i) == Ghost:
+                    i.mode = 'normal'
         if 2 * FPS <= (counter - ghost_counter) <= 3 * FPS:
             if ((counter - ghost_counter) - 2 * FPS) % 25 == 0:
                 if field.ghost_mode == 2:
                     field.change_ghosts(1)
                 elif field.ghost_mode == 1:
                     field.change_ghosts(2)
-        if map_x == pacman.cur_cell[0] and map_y == pacman.cur_cell[1] and field.mode != 'ghost_eatable':
-            game_over_screen()
+
+        if map_x == pacman.cur_cell[0] and map_y == pacman.cur_cell[1]:
+            if self.mode == 'blue':
+                field.eaten_ghosts += 1
+                field.points += 200 * field.eaten_ghosts
+                show_text(str(200 * field.eaten_ghosts), map_x * tile_width, (map_y + 1) * tile_height, Canvas, size=20, color='yellow')
+                show_text('points: {}'.format(field.points), WIDTH - 120, 10, Canvas, 'yellow')
+                self.rect = pygame.rect.Rect(self.spawn_point[0] * tile_width, self.spawn_point[1] * tile_height, tile_width, tile_height)
+                self.mode = 'normal'
+                self.image = self.img
+            elif self.mode == 'normal':
+                game_over_screen()
 
 
 def generate_level(level):
@@ -286,8 +306,8 @@ def show_text(text, x, y, surface, color='white', size=30, align='left'):
 
     string_rendered = font.render(text, 1, pygame.Color(color))
     text_rect = string_rendered.get_rect()
-    text_rect.top = y
     text_rect.x = x
+    text_rect.y = y
     if align == 'center':
         text_rect.x -= text_rect.width // 2
         text_rect.y -= text_rect.height // 2
