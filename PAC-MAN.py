@@ -170,9 +170,16 @@ class Ghost(pygame.sprite.Sprite):
         self.check_cells = None
 
     def set_check_cells(self, x, y):
-        self.check_cells = [list(tiles_group)[(self.cur_cell[1] - 1) * (x + 1) + (self.cur_cell[0] - 1):(self.cur_cell[1] - 1) * (x + 1) + self.cur_cell[0] + 2],
-                            list(tiles_group)[(self.cur_cell[1]) * (x + 1) + (self.cur_cell[0] - 1):(self.cur_cell[1]) * (x + 1) + self.cur_cell[0] + 2],
-                            list(tiles_group)[(self.cur_cell[1] + 1) * (x + 1) + (self.cur_cell[0] - 1):(self.cur_cell[1] + 1) * (x + 1) + self.cur_cell[0] + 2]]
+        # Wrong check if ghost posx < 0 or > x
+        if self.cur_cell[0] <= 0:
+            cur_cell = (x + 1, self.cur_cell[1])
+        elif self.cur_cell[0] >= x:
+            cur_cell = (1, self.cur_cell[1])
+        else:
+            cur_cell = self.cur_cell
+        self.check_cells = [list(tiles_group)[(cur_cell[1] - 1) * (x + 1) + (cur_cell[0] - 1):(cur_cell[1] - 1) * (x + 1) + cur_cell[0] + 2],
+                            list(tiles_group)[(cur_cell[1]) * (x + 1) + (cur_cell[0] - 1):(cur_cell[1]) * (x + 1) + cur_cell[0] + 2],
+                            list(tiles_group)[(cur_cell[1] + 1) * (x + 1) + (cur_cell[0] - 1):(cur_cell[1] + 1) * (x + 1) + cur_cell[0] + 2]]
 
     def change_dir(self):
         opposites = {'l': 'r', 'r': 'l', 'u': 'd', 'd': 'u'}
@@ -200,8 +207,12 @@ class Ghost(pygame.sprite.Sprite):
 
     def move(self, dir):
         if dir == 'r':
+            if self.cur_cell[0] >= x + 2:
+                self.rect.x = -2 * tile_width
             self.rect = self.rect.move(self.speed, 0)
         elif dir == 'l':
+            if self.cur_cell[0] <= -2:
+                self.rect.x = (x + 2) * tile_width
             self.rect = self.rect.move(-self.speed, 0)
         elif dir == 'u':
             self.rect = self.rect.move(0, -self.speed)
