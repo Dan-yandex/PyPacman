@@ -8,21 +8,6 @@ size = WIDTH, HEIGHT = 600, 700
 screen = pygame.display.set_mode(size)
 
 
-def load_image(name, colorkey=None):
-    fullname = os.path.join('data', name)
-    try:
-        image = pygame.image.load(fullname)
-    except pygame.error as message:
-        print('Cannot load image:', name)
-        raise SystemExit(message)
-    image = image.convert_alpha()
-    if colorkey is not None:
-        if colorkey is -1:
-            colorkey = image.get_at((0, 0))
-        image.set_colorkey(colorkey)
-    return image
-
-
 class Field:
     def __init__(self, field):
         self.field = field
@@ -80,9 +65,16 @@ class PacMan(pygame.sprite.Sprite):
         self.check_cells = None
 
     def set_check_cells(self, x, y):
-        self.check_cells = [list(tiles_group)[(self.cur_cell[1] - 1) * (x + 1) + (self.cur_cell[0] - 1):(self.cur_cell[1] - 1) * (x + 1) + self.cur_cell[0] + 2],
-                            list(tiles_group)[(self.cur_cell[1]) * (x + 1) + (self.cur_cell[0] - 1):(self.cur_cell[1]) * (x + 1) + self.cur_cell[0] + 2],
-                            list(tiles_group)[(self.cur_cell[1] + 1) * (x + 1) + (self.cur_cell[0] - 1):(self.cur_cell[1] + 1) * (x + 1) + self.cur_cell[0] + 2]]
+        # Wrong check if pacman posx < 0 or > x
+        if self.cur_cell[0] <= 0:
+            cur_cell = (x + 1, self.cur_cell[1])
+        elif self.cur_cell[0] >= x:
+            cur_cell = (1, self.cur_cell[1])
+        else:
+            cur_cell = self.cur_cell
+        self.check_cells = [list(tiles_group)[(cur_cell[1] - 1) * (x + 1) + (cur_cell[0] - 1):(cur_cell[1] - 1) * (x + 1) + cur_cell[0] + 2],
+                            list(tiles_group)[(cur_cell[1]) * (x + 1) + (cur_cell[0] - 1):(cur_cell[1]) * (x + 1) + cur_cell[0] + 2],
+                            list(tiles_group)[(cur_cell[1] + 1) * (x + 1) + (cur_cell[0] - 1):(cur_cell[1] + 1) * (x + 1) + cur_cell[0] + 2]]
 
     def turn(self, dir):
         global x, y
@@ -107,8 +99,12 @@ class PacMan(pygame.sprite.Sprite):
 
     def move(self, dir):
         if dir == 'r':
+            if self.cur_cell[0] >= x + 2:
+                self.rect.x = -2 * tile_width
             self.rect = self.rect.move(self.speed, 0)
         elif dir == 'l':
+            if self.cur_cell[0] <= -2:
+                self.rect.x = (x + 2) * tile_width
             self.rect = self.rect.move(-self.speed, 0)
         elif dir == 'u':
             self.rect = self.rect.move(0, -self.speed)
@@ -250,6 +246,21 @@ class Ghost(pygame.sprite.Sprite):
                 self.image = self.img
             elif self.mode == 'normal':
                 game_over_screen()
+
+
+def load_image(name, colorkey=None):
+    fullname = os.path.join('data', name)
+    try:
+        image = pygame.image.load(fullname)
+    except pygame.error as message:
+        print('Cannot load image:', name)
+        raise SystemExit(message)
+    image = image.convert_alpha()
+    if colorkey is not None:
+        if colorkey is -1:
+            colorkey = image.get_at((0, 0))
+        image.set_colorkey(colorkey)
+    return image
 
 
 def generate_level(level):
