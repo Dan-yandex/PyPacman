@@ -122,7 +122,7 @@ class PacMan(pygame.sprite.Sprite):
             self.cur_dir = None
 
     def update(self):
-        global x, y, ghost_counter
+        global x, y, ghost_counter, total_points
         map_x, map_y = field.cell(self.rect.x + self.rect.width / 2, self.rect.y + self.rect.height / 2)
         if (map_x, map_y) != self.cur_cell:
             self.cur_cell = (map_x, map_y)
@@ -137,9 +137,11 @@ class PacMan(pygame.sprite.Sprite):
         if tile.tile_type == 'tile_point':
             field.change_cell(tile, 'tile_empty', points=10)
             show_text('points: {}'.format(field.points), WIDTH - 120, 10, Canvas, 'yellow')
+            total_points -= 1
         if tile.tile_type == 'tile_point_big':
             field.change_cell(tile, 'tile_empty', points=20)
             show_text('points: {}'.format(field.points), WIDTH - 120, 10, Canvas, 'yellow')
+            total_points -= 1
 
             for i in player_group:
                 if type(i) == Ghost:
@@ -147,6 +149,9 @@ class PacMan(pygame.sprite.Sprite):
             field.change_ghosts(1)
             ghost_counter = counter
             field.mode = 'ghost_eatable'
+
+        if total_points == 0:
+            start_screen(True)
 
         # print(field.cell(self.rect.x, self.rect.y))
 
@@ -275,13 +280,16 @@ def load_image(name, colorkey=None):
 
 
 def generate_level(level):
+    global total_points
     new_player, x, y, pinky, inky, clyde, blinky = None, None, None, None, None, None, None
     for y in range(len(level)):
         for x in range(len(level[y])):
             if level[y][x] == '.':
                 Tile('tile_point', x, y)
+                total_points += 1
             elif level[y][x] == 'O':
                 Tile('tile_point_big', x, y)
+                total_points += 1
             elif level[y][x] == '_':
                 Tile('tile_empty', x, y)
             elif level[y][x] == '#':
@@ -342,6 +350,7 @@ running = True
 FPS = 150
 counter = 0
 ghost_counter = 10**9
+total_points = 0
 Canvas = pygame.Surface(size)
 m = load_level('map_classic.txt')
 shifty = 2
@@ -385,13 +394,21 @@ tiles_group.draw(Canvas)
 show_text('points: {}'.format(field.points), WIDTH - 120, 10, Canvas, 'yellow')
 
 
-def start_screen():
-    intro_text = ["ZASTAVKA"]
+def start_screen(win=False):
+    intro_text = ["Press any key to start!"]
 
     fon = pygame.transform.scale(load_image('bg_start_screen.jpg'), (WIDTH, HEIGHT))
     screen.blit(fon, (0, 0))
+    title = pygame.transform.scale(load_image('pacman_startscr.jpg'), (WIDTH // 2, HEIGHT // 8))
+    screen.blit(title, (WIDTH // 4, 20))
+
     for line in intro_text:
-        show_text(line, 30, 50, screen,  size=50)
+        show_text(line, 300, 250, screen, size=35)
+    show_text('"1" - track 1, "2" - track 2, "0" - stop music', 10, HEIGHT - 50, screen, size=30)
+
+    if win:
+        show_text('YOU WON!', 350, 450, screen, size=40, color='yellow')
+        show_text('Your points: {}'.format(field.points), 350, 480, screen, size=30, color='yellow')
 
     while True:
         for event in pygame.event.get():
